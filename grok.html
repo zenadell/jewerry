@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grok WhatsApp Store Tester</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e5ddd5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #chat-container {
+            width: 400px;
+            height: 600px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #header {
+            background: #075e54;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        #messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .user {
+            align-self: flex-end;
+            background: #dcf8c6;
+            color: #303030;
+        }
+
+        .grok {
+            align-self: flex-start;
+            background: #ffffff;
+            color: #303030;
+            border: 1px solid #ddd;
+        }
+
+        .error {
+            align-self: center;
+            background: #ffcccc;
+            color: #990000;
+            border: 1px solid #ff9999;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        #input-area {
+            display: flex;
+            padding: 10px;
+            background: #f0f0f0;
+            border-top: 1px solid #ddd;
+        }
+
+        #user-input {
+            flex: 1;
+            border: none;
+            padding: 10px;
+            border-radius: 20px;
+            outline: none;
+        }
+
+        #send-btn {
+            background: #075e54;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin-left: 5px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #send-btn:disabled {
+            background: #ccc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="chat-container">
+        <div id="header">Grok AI Assistant (WhatsApp Style)</div>
+        <div id="messages"></div>
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Type a message..." autocomplete="off">
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // Your hardcoded API Key for testing
+        const API_KEY = "YOUR_XAI_API_KEY";
+
+        const messagesContainer = document.getElementById('messages');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        // Conversation history to maintain the massive "Memory"
+        let chatHistory = [
+            { role: "system", content: "You are a helpful AI representing a WhatsApp store. Keep responses concise and friendly." }
+        ];
+
+        function appendMessage(role, text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}`;
+            msgDiv.innerText = text;
+            messagesContainer.appendChild(msgDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // UI Update: Show user message immediately
+            appendMessage('user', text);
+            userInput.value = '';
+            sendBtn.disabled = true;
+
+            // Add user message to the memory array
+            chatHistory.push({ role: "user", content: text });
+
+            try {
+                const response = await fetch("https://api.x.ai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        // Using the exact API identifier for Grok 4.1 Fast
+                        model: "grok-4-1-fast-non-reasoning",
+                        messages: chatHistory,
+                        stream: false
+                    })
+                });
+
+                const data = await response.json();
+
+                // Catch 400/401 API errors and throw them to the catch block
+                if (!response.ok) {
+                    throw new Error(data.error?.message || `HTTP Error: ${response.status}`);
+                }
+
+                const grokReply = data.choices[0].message.content;
+
+                // UI Update: Show Grok's reply
+                appendMessage('grok', grokReply);
+
+                // Add Grok's reply to the memory array
+                chatHistory.push({ role: "assistant", content: grokReply });
+
+            } catch (error) {
+                console.error("API Error:", error);
+
+                // Display the exact error in the chat window in a red bubble
+                appendMessage('error', `System Error: ${error.message}`);
+
+                // Remove the failed user message from history so the bot's memory isn't corrupted
+                chatHistory.pop();
+            } finally {
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+
+</body>
+
+</html>

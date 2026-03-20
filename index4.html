@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chaka AI - Stable Streaming Voice</title>
+    <style>
+        :root {
+            --primary-color: #5eead4;
+            --bg-color: #0f0f0f;
+            --chat-bg: #1a1a1a;
+            --text-color: #e0e0e0;
+            --bot-msg-bg: #222222;
+            --user-msg-bg: var(--primary-color);
+            --user-msg-text: #000000;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #chat-container {
+            width: 100%;
+            max-width: 600px;
+            height: 90vh;
+            background: var(--chat-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(94, 234, 212, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #333;
+        }
+
+        .header {
+            background-color: #111;
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        .header-title {
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: var(--primary-color);
+        }
+
+        select {
+            padding: 6px;
+            background: #222;
+            color: white;
+            border: 1px solid #444;
+            border-radius: 5px;
+            outline: none;
+            color: var(--text-color);
+        }
+
+        .audio-wave {
+            display: none;
+            height: 20px;
+            gap: 3px;
+            align-items: flex-end;
+        }
+
+        .bar {
+            width: 4px;
+            background: var(--primary-color);
+            animation: bounce 0.5s infinite;
+        }
+
+        .bar:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .bar:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .bar:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            100% {
+                height: 4px;
+            }
+
+            50% {
+                height: 20px;
+            }
+        }
+
+        #chat-box {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+
+        .message-wrapper {
+            display: flex;
+            flex-direction: column;
+            max-width: 85%;
+        }
+
+        .message-wrapper.user {
+            align-self: flex-end;
+        }
+
+        .message-wrapper.bot {
+            align-self: flex-start;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background-color: var(--user-msg-bg);
+            color: var(--user-msg-text);
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot-message {
+            background-color: var(--bot-msg-bg);
+            color: var(--text-color);
+            border-bottom-left-radius: 4px;
+            border: 1px solid #333;
+        }
+
+        .play-btn {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            cursor: pointer;
+            align-self: flex-start;
+            margin-top: 4px;
+            font-size: 1.2rem;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .play-btn:hover {
+            opacity: 1;
+        }
+
+        .play-btn:disabled {
+            color: #555;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            font-style: italic;
+            color: #888;
+            font-size: 0.85rem;
+            align-self: flex-start;
+        }
+
+        #input-area {
+            display: flex;
+            padding: 16px;
+            background-color: #111;
+            border-top: 1px solid #333;
+            gap: 10px;
+        }
+
+        #user-input {
+            flex: 1;
+            padding: 12px;
+            background: #222;
+            color: white;
+            border: 1px solid #444;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        #user-input:focus {
+            border-color: var(--primary-color);
+        }
+
+        button.action-btn {
+            background-color: var(--primary-color);
+            color: black;
+            border: none;
+            border-radius: 8px;
+            padding: 0 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button.action-btn:disabled {
+            background-color: #444;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        #mic-btn {
+            background-color: #ef4444;
+            color: white;
+            padding: 0 15px;
+            font-size: 1.2rem;
+        }
+
+        #mic-btn.recording {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.95);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(0.95);
+                opacity: 0.8;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="chat-container">
+        <div class="header">
+            <div class="header-title">Chaka AI</div>
+            <div class="audio-wave" id="audioWave">
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+                <div class="bar"></div>
+            </div>
+            <select id="voiceSelect">
+                <option value="Puck">Puck (Male)</option>
+                <option value="Kore">Kore (Female)</option>
+                <option value="Zephyr">Zephyr (Female)</option>
+                <option value="Charon">Charon (Male)</option>
+            </select>
+        </div>
+
+        <div id="chat-box">
+            <div class="message-wrapper bot">
+                <div class="message bot-message">Stable streaming systems online.</div>
+            </div>
+        </div>
+
+        <div id="input-area">
+            <button id="mic-btn" class="action-btn" title="Click to speak">🎤</button>
+            <input type="text" id="user-input" placeholder="Type or speak your message..." autocomplete="off">
+            <button id="send-btn" class="action-btn">Send</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const API_KEY = 'AIzaSyBrNaqEUlc9pg5J-m9REBp3uyLua0soZwE';
+        const TEXT_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${API_KEY}`;
+        const AUDIO_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY}`;
+
+        const chatBox = document.getElementById('chat-box');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const micBtn = document.getElementById('mic-btn');
+        const voiceSelect = document.getElementById('voiceSelect');
+        const audioWave = document.getElementById('audioWave');
+
+        let conversationHistory = [];
+        let isVoiceInput = false;
+
+        // --- QUEUE SYSTEMS ---
+        let audioCtx;
+
+        // 1. Text Queue (to prevent 429 Too Many Requests)
+        let textQueue = [];
+        let isFetchingAudio = false;
+
+        // 2. Audio Queue (to play sentences smoothly)
+        let audioQueue = [];
+        let isPlayingAudio = false;
+
+        async function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+        }
+
+        // --- FETCH LOCK MANAGER ---
+        async function processTextQueue() {
+            // If we are currently fetching, or the queue is empty, do nothing
+            if (isFetchingAudio || textQueue.length === 0) return;
+
+            isFetchingAudio = true; // Lock
+            const sentenceToFetch = textQueue.shift(); // Get next sentence
+
+            await fetchAudioForSentence(sentenceToFetch);
+
+            isFetchingAudio = false; // Unlock
+            processTextQueue(); // Check if there's more to fetch
+        }
+
+        async function fetchAudioForSentence(sentence) {
+            const requestBody = {
+                contents: [{ parts: [{ text: sentence }] }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceSelect.value } } }
+                }
+            };
+
+            try {
+                const response = await fetch(AUDIO_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+                const data = await response.json();
+
+                if (data.candidates && data.candidates[0].content.parts[0].inlineData) {
+                    const audioBase64 = data.candidates[0].content.parts[0].inlineData.data;
+                    audioQueue.push(audioBase64);
+                    playNextInQueue();
+                } else {
+                    console.error("TTS Error Response:", data);
+                }
+            } catch (e) {
+                console.error("Failed to fetch audio for sentence:", e);
+            }
+        }
+
+        // --- AUDIO PLAYER ---
+        async function playNextInQueue() {
+            if (audioQueue.length === 0 || isPlayingAudio) {
+                if (audioQueue.length === 0) audioWave.style.display = "none";
+                return;
+            }
+
+            isPlayingAudio = true;
+            const base64String = audioQueue.shift();
+            audioWave.style.display = "flex";
+
+            try {
+                const binaryString = window.atob(base64String);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+
+                const wavBuffer = addWavHeader(bytes, 24000, 16, 1);
+                const audioBuffer = await audioCtx.decodeAudioData(wavBuffer);
+                const source = audioCtx.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioCtx.destination);
+
+                source.start(0);
+                source.onended = () => {
+                    isPlayingAudio = false;
+                    playNextInQueue();
+                };
+            } catch (e) {
+                console.error("Audio Decode Error:", e);
+                isPlayingAudio = false;
+                playNextInQueue();
+            }
+        }
+
+        function addWavHeader(samples, sampleRate, sampleBits, numChannels) {
+            const buffer = new ArrayBuffer(44 + samples.length);
+            const view = new DataView(buffer);
+            writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + samples.length, true);
+            writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt '); view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * numChannels * (sampleBits / 8), true); view.setUint16(32, numChannels * (sampleBits / 8), true);
+            view.setUint16(34, sampleBits, true); writeString(view, 36, 'data'); view.setUint32(40, samples.length, true);
+            new Uint8Array(buffer, 44).set(samples);
+            return buffer;
+        }
+        function writeString(view, offset, string) { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); }
+
+        // --- MIC HANDLING ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.onstart = () => { micBtn.classList.add('recording'); userInput.placeholder = "Listening..."; initAudio(); };
+            recognition.onresult = (event) => { userInput.value = event.results[0][0].transcript; isVoiceInput = true; sendMessage(); };
+            recognition.onend = () => { micBtn.classList.remove('recording'); userInput.placeholder = "Type or speak your message..."; };
+        }
+        micBtn.addEventListener('click', () => recognition && recognition.start());
+        sendBtn.addEventListener('click', () => { isVoiceInput = false; initAudio(); sendMessage(); });
+        userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { isVoiceInput = false; initAudio(); sendMessage(); } });
+
+        // --- CORE STREAMING LOGIC ---
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            appendUserMessage(text);
+            userInput.value = '';
+            sendBtn.disabled = true; micBtn.disabled = true;
+
+            conversationHistory.push({ role: "user", parts: [{ text: text }] });
+
+            const { msgDiv, playBtn } = createEmptyBotMessage();
+            let fullBotText = "";
+            let sentenceBuffer = "";
+
+            try {
+                const response = await fetch(TEXT_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: conversationHistory })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.substring(6);
+                            if (dataStr === '[DONE]') continue;
+
+                            try {
+                                const data = JSON.parse(dataStr);
+                                if (data.candidates && data.candidates[0].content.parts[0].text) {
+                                    const newTextChunk = data.candidates[0].content.parts[0].text;
+                                    fullBotText += newTextChunk;
+                                    sentenceBuffer += newTextChunk;
+
+                                    msgDiv.innerHTML = formatMarkdown(fullBotText);
+                                    chatBox.scrollTop = chatBox.scrollHeight;
+
+                                    if (isVoiceInput) {
+                                        // Improved Regex: splits at punctuation followed by space/newline
+                                        const match = sentenceBuffer.match(/([.?!])(\s|\n|$)/);
+                                        if (match) {
+                                            const splitIndex = match.index + match[0].length;
+                                            let completedSentence = sentenceBuffer.substring(0, splitIndex).trim();
+
+                                            // FIX for 400 error: Strip markdown asterisks, hashes, backticks
+                                            completedSentence = completedSentence.replace(/[*_#`]/g, '');
+
+                                            if (completedSentence) {
+                                                textQueue.push(completedSentence);
+                                                processTextQueue(); // Trigger fetch safely
+                                            }
+
+                                            sentenceBuffer = sentenceBuffer.substring(splitIndex);
+                                        }
+                                    }
+                                }
+                            } catch (e) { /* Ignore partial JSON */ }
+                        }
+                    }
+                }
+
+                conversationHistory.push({ role: "model", parts: [{ text: fullBotText }] });
+
+                // Flush remaining buffer
+                if (isVoiceInput && sentenceBuffer.trim().length > 0) {
+                    let finalSentence = sentenceBuffer.trim().replace(/[*_#`]/g, '');
+                    if (finalSentence) {
+                        textQueue.push(finalSentence);
+                        processTextQueue();
+                    }
+                }
+
+                playBtn.onclick = () => {
+                    playBtn.disabled = true; playBtn.innerText = "⏳";
+                    // For manual play, strip markdown and queue it
+                    const cleanText = fullBotText.replace(/[*_#`]/g, '');
+                    textQueue.push(cleanText);
+                    processTextQueue();
+                    setTimeout(() => { playBtn.innerText = "🔊"; playBtn.disabled = false; }, 2000);
+                };
+
+            } catch (error) {
+                msgDiv.innerHTML = `Error: ${error.message}`;
+                conversationHistory.pop();
+            } finally {
+                sendBtn.disabled = false; micBtn.disabled = false;
+                if (!isVoiceInput) userInput.focus();
+            }
+        }
+
+        // --- UI HELPERS ---
+        function formatMarkdown(text) {
+            // Very simple formatting for bold and newlines
+            return text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+                .replace(/\n/g, '<br>');
+        }
+
+        function appendUserMessage(text) {
+            const wrap = document.createElement('div');
+            wrap.className = 'message-wrapper user';
+            wrap.innerHTML = `<div class="message user-message">${text}</div>`;
+            chatBox.appendChild(wrap);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function createEmptyBotMessage() {
+            const wrap = document.createElement('div');
+            wrap.className = 'message-wrapper bot';
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message bot-message';
+            msgDiv.innerText = "▌";
+            wrap.appendChild(msgDiv);
+            const playBtn = document.createElement('button');
+            playBtn.className = 'play-btn';
+            playBtn.innerText = "🔊";
+            wrap.appendChild(playBtn);
+            chatBox.appendChild(wrap);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return { msgDiv, playBtn };
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GUSTAV SYSTEM v2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #050505;
+            color: #00ff41;
+        }
+
+        .neon-text {
+            text-shadow: 0 0 5px #00ff41;
+        }
+
+        .neon-border {
+            border: 1px solid #00ff41;
+            box-shadow: 0 0 5px #00ff41;
+        }
+
+        .glass-panel {
+            background: rgba(0, 20, 0, 0.7);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(0, 255, 65, 0.3);
+        }
+
+        /* Scanline effect */
+        .scanline {
+            width: 100%;
+            height: 100px;
+            z-index: 10;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(0, 255, 65, 0.04) 50%, rgba(0, 0, 0, 0) 100%);
+            opacity: 0.1;
+            position: absolute;
+            bottom: 100%;
+            animation: scanline 10s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scanline {
+            0% {
+                bottom: 100%;
+            }
+
+            100% {
+                bottom: -100%;
+            }
+        }
+
+        /* Pulse animation for recording */
+        @keyframes pulse-red {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 0, 0, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+            }
+        }
+
+        .recording-active {
+            animation: pulse-red 1.5s infinite;
+            border-color: #ff0055 !important;
+            color: #ff0055 !important;
+            text-shadow: 0 0 5px #ff0055 !important;
+        }
+
+        /* Scrollbar for log */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #000;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #00ff41;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col p-4 relative overflow-hidden">
+    <div class="scanline"></div>
+
+    <!-- Header -->
+    <header class="w-full flex justify-between items-center mb-8 border-b border-green-900 pb-4 z-20">
+        <h1 class="text-2xl font-bold tracking-widest neon-text">GUSTAV_SYSTEM <span
+                class="text-xs opacity-50">v2.0</span></h1>
+        <div id="statusIndicator" class="text-xs uppercase tracking-widest text-green-700">System Ready</div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow flex flex-col items-center justify-center w-full max-w-4xl mx-auto z-20 gap-6">
+
+        <!-- Interaction Area -->
+        <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Transcription Panel -->
+            <div class="glass-panel p-6 rounded-lg min-h-[200px] flex flex-col">
+                <h3 class="text-xs uppercase opacity-70 mb-2 border-b border-green-900/50 pb-1">Input Stream</h3>
+                <p id="transcription" class="text-sm opacity-80 whitespace-pre-wrap flex-grow">Waiting for voice
+                    input...</p>
+            </div>
+
+            <!-- Response Panel -->
+            <div class="glass-panel p-6 rounded-lg min-h-[200px] flex flex-col border-green-500/50">
+                <h3 class="text-xs uppercase opacity-70 mb-2 border-b border-green-900/50 pb-1">AI Response</h3>
+                <p id="gptResponse" class="text-sm text-green-300 whitespace-pre-wrap flex-grow">System idling...</p>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex flex-col items-center gap-4 mt-8">
+            <button id="recordButton"
+                class="neon-border bg-black text-green-400 font-bold py-4 px-8 rounded-full hover:bg-green-900/20 transition duration-300 uppercase tracking-widest">
+                Initialize Voice Link
+            </button>
+            <div id="visualizer" class="h-2 w-64 bg-green-900/20 rounded-full overflow-hidden">
+                <div id="vizBar" class="h-full bg-green-500 w-0 transition-all duration-75"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Hidden audio element -->
+    <audio id="audioPlayback" class="hidden"></audio>
+
+    <!-- System Log -->
+    <div id="logContainer"
+        class="w-full h-48 bg-black border-t border-green-900 font-mono text-xs p-2 overflow-y-auto z-30 mt-8 opacity-80">
+        <div class="opacity-50 mb-2">--- SYSTEM LOG ---</div>
+        <div id="systemLog" class="flex flex-col gap-1"></div>
+    </div>
+
+    <script>
+        // CONFIGURATION
+        const CONFIG = {
+            API_KEY: 'YOUR_OPENAI_API_KEY', // Ideally should not be hardcoded
+            SILENCE_THRESHOLD: 5, // Range around 128
+            SILENCE_DURATION: 1200, // ms
+            VISUALIZER_SENSITIVITY: 2
+        };
+
+        // DOM ELEMENTS
+        const ui = {
+            btn: document.getElementById('recordButton'),
+            transcription: document.getElementById('transcription'),
+            response: document.getElementById('gptResponse'),
+            audio: document.getElementById('audioPlayback'),
+            log: document.getElementById('systemLog'),
+            vizBar: document.getElementById('vizBar'),
+            status: document.getElementById('statusIndicator')
+        };
+
+        // STATE
+        let state = {
+            isRecording: false,
+            mediaRecorder: null,
+            audioChunks: [],
+            silenceTimeout: null,
+            audioContext: null,
+            analyser: null,
+            dataArray: null,
+            animationId: null
+        };
+
+        // --- LOGGING SYSTEM ---
+        function log(msg, type = 'info') {
+            const entry = document.createElement('div');
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            let colorClass = 'text-green-400';
+            if (type === 'error') colorClass = 'text-red-500';
+            if (type === 'warn') colorClass = 'text-yellow-500';
+            if (type === 'system') colorClass = 'text-blue-400';
+
+            entry.className = `${colorClass} hover:bg-white/5 px-1 rounded`;
+            entry.innerHTML = `<span class="opacity-50 mr-2">[${time}]</span> ${msg}`;
+
+            ui.log.appendChild(entry);
+
+            // Auto-scroll
+            const container = document.getElementById('logContainer');
+            container.scrollTop = container.scrollHeight;
+
+            // Also log to console
+            if (type === 'error') console.error(msg);
+            else console.log(msg);
+        }
+
+        // Capture global errors
+        window.onerror = function (msg, url, line) {
+            log(`Global Error: ${msg} (Line ${line})`, 'error');
+            return false;
+        };
+
+        // --- INIT ---
+        // --- INIT ---
+        if (window.location.protocol === 'file:') {
+            log('WARNING: Running from local file system (file://). APIs may fail due to CORS security policies.', 'warn');
+            log('Suggestion: Serve this file via a local server (e.g., python3 -m http.server)', 'system');
+        }
+        log('System initialized. Waiting for user interaction...', 'system');
+
+        // --- EVENT LISTENERS ---
+        ui.btn.addEventListener('click', toggleRecording);
+
+        ui.audio.addEventListener('ended', () => {
+            log('Audio playback ended. Restarting listening sequence...', 'system');
+            toggleRecording(); // Auto-restart loop
+        });
+
+        async function toggleRecording() {
+            if (state.isRecording) {
+                stopRecording();
+            } else {
+                await startRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Browser API not supported');
+                }
+
+                log('Requesting microphone access...', 'system');
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Audio Context Setup
+                state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = state.audioContext.createMediaStreamSource(stream);
+                state.analyser = state.audioContext.createAnalyser();
+                state.analyser.fftSize = 2048;
+                source.connect(state.analyser);
+
+                const bufferLength = state.analyser.frequencyBinCount;
+                state.dataArray = new Uint8Array(bufferLength);
+
+                // Media Recorder Setup
+                state.mediaRecorder = new MediaRecorder(stream);
+                state.audioChunks = [];
+
+                state.mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) state.audioChunks.push(event.data);
+                };
+
+                state.mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(state.audioChunks, { type: 'audio/wav' });
+                    processAudio(audioBlob);
+
+                    // Cleanup stream tracks
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                state.mediaRecorder.start();
+                state.isRecording = true;
+
+                updateUIState('recording');
+                log('Recording started. Listening...', 'success');
+
+                // Start Analysis Loop
+                detectSilence();
+
+            } catch (error) {
+                log(`Recording failed: ${error.message}`, 'error');
+                if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    alert('Microphone access was denied. Please allow it in your browser settings.');
+                } else {
+                    alert(`Microphone access failed: ${error.message}`);
+                }
+            }
+        }
+
+        function stopRecording() {
+            if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+                state.mediaRecorder.stop();
+                state.isRecording = false;
+
+                // Clear timeouts/intervals
+                if (state.silenceTimeout) clearTimeout(state.silenceTimeout);
+                if (state.animationId) cancelAnimationFrame(state.animationId);
+
+                updateUIState('processing');
+                log('Recording stopped. Processing audio...', 'system');
+            }
+        }
+
+        function checkSilenceLogic() {
+            if (!state.isRecording) return;
+
+            state.analyser.getByteTimeDomainData(state.dataArray);
+
+            // Visualizer update
+            let sum = 0;
+            for (let i = 0; i < state.dataArray.length; i++) {
+                sum += Math.abs(state.dataArray[i] - 128);
+            }
+            const average = sum / state.dataArray.length;
+            const width = Math.min(100, average * CONFIG.VISUALIZER_SENSITIVITY * 10); // Amplify for visual
+            ui.vizBar.style.width = `${width}%`;
+
+            // Silence Detection
+            let silenceDetected = true;
+            for (let i = 0; i < state.dataArray.length; i++) {
+                // Using 128 +/- threshold
+                if (state.dataArray[i] > 128 + CONFIG.SILENCE_THRESHOLD ||
+                    state.dataArray[i] < 128 - CONFIG.SILENCE_THRESHOLD) {
+                    silenceDetected = false;
+                    break;
+                }
+            }
+
+            if (silenceDetected) {
+                if (!state.silenceTimeout) {
+                    // Start timeout
+                    state.silenceTimeout = setTimeout(() => {
+                        log('Silence detected (timeout reached). Stopping...', 'info');
+                        stopRecording();
+                    }, CONFIG.SILENCE_DURATION);
+                }
+            } else {
+                // Reset timeout if sound detected
+                if (state.silenceTimeout) {
+                    clearTimeout(state.silenceTimeout);
+                    state.silenceTimeout = null;
+                }
+            }
+
+            state.animationId = requestAnimationFrame(checkSilenceLogic);
+        }
+
+        function detectSilence() {
+            checkSilenceLogic();
+        }
+
+        // --- API INTERACTIONS ---
+        async function processAudio(audioBlob) {
+            const formData = new FormData();
+            formData.append('file', audioBlob, 'recording.wav');
+            formData.append('model', 'whisper-1');
+
+            try {
+                log('Uploading audio to Whisper API...', 'system');
+                const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${CONFIG.API_KEY}` },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`Whisper API Error: ${response.status} ${response.statusText} - ${errText}`);
+                }
+
+                const data = await response.json();
+                if (data.text) {
+                    log(`Transcription: "${data.text}"`, 'success');
+                    ui.transcription.textContent = data.text;
+                    askGPT(data.text);
+                } else {
+                    throw new Error('No text returned from transcription');
+                }
+
+            } catch (error) {
+                log(`Transcription failed: ${error.message}`, 'error');
+                if (error.message.includes('Failed to fetch') || error.message.includes('Load failed')) {
+                    log('CRITICAL: Request failed. Causes: 1) API Key Invalid? 2) CORS/Network Blocked? 3) Running file:// instead of localhost?', 'warn');
+                }
+                ui.transcription.textContent = "Error: Transcription failed.";
+                updateUIState('idle');
+            }
+        }
+
+        let conversationHistory = [
+            {
+                "role": "system",
+                "content": "Du bist ein chilliger Freund, so ca 23 Jahre alt und kiffst gerne. Du antwortest immer kurz und knapp und redest ständig über Gras rauchen. Dein Name ist Gustav!"
+            }
+        ];
+
+        async function askGPT(text) {
+            conversationHistory.push({ "role": "user", "content": text });
+            updateUIState('thinking');
+            log('Querying GPT-4...', 'system');
+
+            try {
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${CONFIG.API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-4o',
+                        messages: conversationHistory,
+                        max_tokens: 150
+                    })
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`GPT API Error: ${response.status} ${response.statusText} - ${errText}`);
+                }
+
+                const data = await response.json();
+                if (data.choices && data.choices.length > 0) {
+                    const reply = data.choices[0].message.content;
+                    conversationHistory.push({ "role": "assistant", "content": reply });
+
+                    log(`GPT Response: "${reply}"`, 'success');
+                    ui.response.textContent = reply;
+                    speak(reply);
+                } else {
+                    throw new Error('No response from GPT');
+                }
+
+            } catch (error) {
+                log(`GPT request failed: ${error.message}`, 'error');
+                if (error.message.includes('Failed to fetch') || error.message.includes('Load failed')) {
+                    log('CRITICAL: Request failed. Causes: 1) API Key Invalid? 2) CORS/Network Blocked? 3) Running file:// instead of localhost?', 'warn');
+                }
+                ui.response.textContent = "Error: AI generation failed.";
+                updateUIState('idle');
+            }
+        }
+
+        async function speak(text) {
+            log('Generating speech...', 'system');
+            updateUIState('speaking');
+
+            try {
+                const response = await fetch('https://api.openai.com/v1/audio/speech', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${CONFIG.API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'tts-1',
+                        voice: 'onyx',
+                        input: text
+                    })
+                });
+
+                if (!response.ok) throw new Error(`TTS API Error: ${response.statusText}`);
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                ui.audio.src = url;
+                ui.audio.play();
+                log('Audio playback started.', 'success');
+
+            } catch (error) {
+                log(`TTS failed: ${error.message}`, 'error');
+                updateUIState('idle');
+            }
+        }
+
+        // --- UI HELPERS ---
+        function updateUIState(mode) {
+            // Reset styles
+            ui.btn.classList.remove('recording-active', 'bg-red-900', 'bg-black');
+            ui.status.className = 'text-xs uppercase tracking-widest'; // Reset status color
+
+            switch (mode) {
+                case 'recording':
+                    ui.btn.textContent = "LISTENING...";
+                    ui.btn.classList.add('recording-active');
+                    ui.transcription.textContent = "Listening...";
+                    ui.status.textContent = "RECORDING IN PROGRESS";
+                    ui.status.classList.add('text-red-500');
+                    break;
+                case 'processing':
+                    ui.btn.textContent = "PROCESSING";
+                    ui.btn.classList.add('bg-black', 'opacity-50', 'cursor-not-allowed');
+                    ui.status.textContent = "PROCESSING DATA";
+                    ui.status.classList.add('text-yellow-500');
+                    break;
+                case 'thinking':
+                    ui.status.textContent = "NEURAL NET ACTIVE";
+                    ui.status.classList.add('text-blue-500');
+                    break;
+                case 'speaking':
+                    ui.btn.textContent = "SPEAKING";
+                    ui.btn.classList.add('bg-green-900', 'text-white');
+                    ui.status.textContent = "AUDIO OUPUT ACTIVE";
+                    ui.status.classList.add('text-green-500');
+                    break;
+                case 'idle':
+                default:
+                    ui.btn.textContent = "INITIALIZE VOICE LINK";
+                    ui.btn.classList.add('bg-black');
+                    ui.btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    ui.status.textContent = "SYSTEM READY";
+                    ui.status.classList.add('text-green-700');
+                    break;
+            }
+        }
+
+    </script>
+</body>
+
+</html>
