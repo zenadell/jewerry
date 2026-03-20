@@ -3498,14 +3498,11 @@
         </path>
       </svg>
     </div>
-    <div id="jomiez-diagnostic" style="background:red !important;color:white !important;padding:30px !important;font-size:30px !important;text-align:center !important;position:fixed !important;top:0 !important;left:0 !important;width:100% !important;z-index:2147483647 !important;font-family:sans-serif !important;font-weight:bold !important;display:block !important;">
-        DIAGNOSTIC: JOMIEZ REBRAND ACTIVE - IF YOU SEE THIS RED BOX, YOU ARE LOOKING AT THE CORRECT FILE.
-    </div>
 
     <!-- Jomiez Chat Button -->
-    <div id="jomiez-chat-container" style="position:fixed;bottom:20px;right:20px;z-index:2147483646;">
-        <button id="jomiez-chat-button" onclick="alert('Jomiez Support: How can we help you today?')" style="background-color:#141414;color:#FEFFF5;border:none;border-radius:50%;width:60px;height:60px;cursor:pointer;box-shadow:0 10px 25px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;transition:transform 0.2s ease;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <div id="jomiez-chat-container" style="position:fixed;bottom:30px;right:30px;z-index:2147483646;">
+        <button id="jomiez-chat-button" onclick="alert('Jomiez Support: How can we help you today?')" style="background-color:#141414;color:#FEFFF5;border:none;border-radius:50%;width:56px;height:56px;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,0.15);display:flex;align-items:center;justify-content:center;transition:all 0.3s ease;outline:none;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
         </button>
@@ -3513,9 +3510,9 @@
 
     <script>
       (function() {
-        const oldLogos = ['Maison N°3', 'MN°3', 'Maison N.3', 'MAISON N°3', 'MNº3', 'Maison N\u00B03'];
-        const oldContacts = ['+33 1 84 60 32 71', '+33184603271', 'hello@tmpl.digital', 'example@mail.com'];
-        const oldButtons = ['BUY TEMPLATE', 'EDIT TEMPLATE', 'Buy Template', 'Edit Template'];
+        // Broadened logos to catch things like "2026 Maison Collection"
+        const oldLogos = ['Maison N°3', 'MN°3', 'Maison N.3', 'MAISON N°3', 'MNº3', 'Maison', 'MAISON', 'MN'];
+        const oldContacts = ['+33 1 84 60 32 71', '+33184603271', 'hello@tmpl.digital', 'example@mail.com', 'tmpl.digital'];
         
         const newEmail = 'timtemple2024@gmail.com';
         const newPhone = '+234 911 940 4716';
@@ -3534,9 +3531,19 @@
             let text = node.nodeValue;
             let changed = false;
             
-            oldLogos.forEach(logo => { if (text.includes(logo)) { text = text.replace(new RegExp(logo, 'g'), 'Jomiez'); changed = true; } });
+            oldLogos.forEach(logo => {
+                if (text.includes(logo)) {
+                    // Use word boundaries if it's just "MN" to avoid replacing random letters
+                    if (logo === 'MN') {
+                        text = text.replace(/\bMN\b/g, 'Jomiez');
+                    } else {
+                        text = text.replace(new RegExp(logo, 'g'), 'Jomiez');
+                    }
+                    changed = true;
+                }
+            });
             oldContacts.forEach(contact => { if (text.includes(contact)) { 
-                text = text.replace(contact, contact.includes('@') ? newEmail : newPhone); changed = true; 
+                text = text.replace(contact, contact.includes('@') || contact.includes('.app') ? newEmail : newPhone); changed = true; 
             } });
             
             if (changed) node.nodeValue = text;
@@ -3560,7 +3567,7 @@
             const cls = (el.className || '').toString().toLowerCase();
             const text = (el.innerText || '').toLowerCase();
 
-            if (id === 'jomiez-diagnostic' || id === 'jomiez-chat-container') return;
+            if (id === 'jomiez-chat-container' || id === 'jomiez-chat-button') return;
 
             if (text.includes('template') || id.includes('framer') || cls.includes('framer') || id.includes('badge') || cls.includes('badge')) {
                 const style = window.getComputedStyle(el);
@@ -3573,7 +3580,7 @@
 
         runForceRebrand();
         // Run constantly to fight React hydration
-        setInterval(runForceRebrand, 50);
+        setInterval(runForceRebrand, 100);
       })();
     </script>
   </body>
