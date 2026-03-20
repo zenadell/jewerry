@@ -3498,97 +3498,83 @@
         </path>
       </svg>
     </div>
-    <div id="jomiez-chat-trigger" title="Chat with Jomiez Support">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-      </svg>
+    <div id="jomiez-diagnostic" style="background:red !important;color:white !important;padding:30px !important;font-size:30px !important;text-align:center !important;position:fixed !important;top:0 !important;left:0 !important;width:100% !important;z-index:2147483647 !important;font-family:sans-serif !important;font-weight:bold !important;display:block !important;">
+        DIAGNOSTIC: JOMIEZ REBRAND ACTIVE - IF YOU SEE THIS RED BOX, YOU ARE LOOKING AT THE CORRECT FILE.
     </div>
-    <script>
-      document.getElementById('jomiez-chat-trigger').addEventListener('click', function() {
-        alert('Welcome to Jomiez Support! How can we help you today?');
-      });
 
-      // Global Cleanup Script to catch injected branding and badges
+    <!-- Jomiez Chat Button -->
+    <div id="jomiez-chat-container" style="position:fixed;bottom:20px;right:20px;z-index:2147483646;">
+        <button id="jomiez-chat-button" onclick="alert('Jomiez Support: How can we help you today?')" style="background-color:#141414;color:#FEFFF5;border:none;border-radius:50%;width:60px;height:60px;cursor:pointer;box-shadow:0 10px 25px rgba(0,0,0,0.2);display:flex;align-items:center;justify-content:center;transition:transform 0.2s ease;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+        </button>
+    </div>
+
+    <script>
       (function() {
-        const brands = [
-          'Framer', 'Maison N°3', 'MN°3', 'MAISON N°3', 'MNº3', 
-          'BUY TEMPLATE', 'EDIT TEMPLATE',
-          '+33 1 84 60 32 71', '+33184603271', 
-          'hello@tmpl.digital', 'hello@jomiez.com'
-        ];
-        const targetUrl = 'https://chaka-ai-v2.netlify.app';
+        const oldLogos = ['Maison N°3', 'MN°3', 'Maison N.3', 'MAISON N°3', 'MNº3', 'Maison N\u00B03'];
+        const oldContacts = ['+33 1 84 60 32 71', '+33184603271', 'hello@tmpl.digital', 'example@mail.com'];
+        const oldButtons = ['BUY TEMPLATE', 'EDIT TEMPLATE', 'Buy Template', 'Edit Template'];
+        
         const newEmail = 'timtemple2024@gmail.com';
         const newPhone = '+234 911 940 4716';
-        
-        const replaceBrands = () => {
-          // 1. Text and Link replacements
-          document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, a, span, div, li').forEach(el => {
-            if (el.children.length === 0 && el.innerText) {
-              let text = el.innerText;
-              let changed = false;
-              brands.slice(0, 7).forEach(brand => {
-                if (text.includes(brand)) {
-                  text = text.replace(new RegExp(brand, 'gi'), 'Jomiez');
-                  changed = true;
-                }
-              });
-              if (text.includes('+33') || text.includes('hello@')) {
-                 text = text.replace(/\+33[0-9 ]{10,15}/g, newPhone);
-                 text = text.replace(/hello@[a-z.]+/g, newEmail);
-                 changed = true;
-              }
-              if (changed) el.innerText = text;
-            }
+        const targetUrl = 'https://chaka-ai-v2.netlify.app';
 
-            if (el.tagName === 'A' && el.href) {
-              const href = el.href.toLowerCase();
-              if (href.includes('framer.com') || href.includes('framer.link') || href.includes('tmpl.digital') || href.includes('jomiez.com')) {
-                if (!href.includes('framerusercontent.com') && !href.includes('.mjs') && !href.includes('.png') && !href.includes('.jpg')) {
-                  el.href = targetUrl;
-                }
-              }
-              if (el.href.startsWith('tel:+33')) el.href = 'tel:+2349119404716';
-              if (el.href.includes('mailto:hello@')) el.href = 'mailto:'+newEmail;
-            }
-          });
+        const runForceRebrand = () => {
+          // 1. Force the title immediately
+          if (document.title.includes('Maison') || document.title.includes('tmpl') || document.title.includes('N\u00B03')) {
+            document.title = 'Jomiez \u2014 Boutique Ecommerce';
+          }
 
-          // 2. Update placeholders
-          document.querySelectorAll('input').forEach(input => {
-            if (input.placeholder && (input.placeholder.includes('example') || input.placeholder.includes('mail.com') || input.placeholder.includes('tmpl'))) {
-              input.placeholder = newEmail;
+          // 2. Scan and replace all text nodes
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+          let node;
+          while(node = walker.nextNode()) {
+            let text = node.nodeValue;
+            let changed = false;
+            
+            oldLogos.forEach(logo => { if (text.includes(logo)) { text = text.replace(new RegExp(logo, 'g'), 'Jomiez'); changed = true; } });
+            oldContacts.forEach(contact => { if (text.includes(contact)) { 
+                text = text.replace(contact, contact.includes('@') ? newEmail : newPhone); changed = true; 
+            } });
+            
+            if (changed) node.nodeValue = text;
+          }
+
+          // 3. Scan and replace all links
+          document.querySelectorAll('a').forEach(a => {
+            if (a.href.startsWith('tel:+33')) a.href = 'tel:+2349119404716';
+            if (a.href.includes('mailto:')) {
+                if (a.href.includes('tmpl.digital') || a.href.includes('hello@')) a.href = 'mailto:' + newEmail;
+            }
+            const href = a.href.toLowerCase();
+            if (href.includes('framer.com') || href.includes('framer.link') || href.includes('tmpl.digital')) {
+                if (!href.includes('framerusercontent.com')) a.href = targetUrl;
             }
           });
 
-          // 3. Hide badges and footer links
+          // 4. Aggressively hide banners/badges
           document.querySelectorAll('*').forEach(el => {
-             const text = el.innerText.toLowerCase();
-             if (text === 'buy template' || text === 'edit template' || text === 'tmpl' || text === 'made by tmpl') {
-               const style = window.getComputedStyle(el);
-               if (style.position === 'fixed' || el.closest('footer')) {
-                 el.style.setProperty('display', 'none', 'important');
-               }
-             }
-          });
+            const id = (el.id || '').toLowerCase();
+            const cls = (el.className || '').toString().toLowerCase();
+            const text = (el.innerText || '').toLowerCase();
 
-          // 4. Hide Framer specific IDs
-          const badges = document.querySelectorAll('[class*="badge"], [id*="badge"]');
-          badges.forEach(b => {
-             if (b.innerText.toLowerCase().includes('template') || b.innerText.toLowerCase().includes('framer')) {
-               b.style.setProperty('display', 'none', 'important');
-             }
+            if (id === 'jomiez-diagnostic' || id === 'jomiez-chat-container') return;
+
+            if (text.includes('template') || id.includes('framer') || cls.includes('framer') || id.includes('badge') || cls.includes('badge')) {
+                const style = window.getComputedStyle(el);
+                if (style.position === 'fixed' || el.closest('footer')) {
+                    el.style.setProperty('display', 'none', 'important');
+                }
+            }
           });
         };
 
-        replaceBrands();
-        setInterval(() => {
-          replaceBrands();
-          if (document.title.includes('Maison') || document.title.includes('tmpl')) {
-            document.title = 'Jomiez — Boutique Ecommerce';
-          }
-        }, 1000);
+        runForceRebrand();
+        // Run constantly to fight React hydration
+        setInterval(runForceRebrand, 50);
       })();
     </script>
-    <!-- Start of bodyEnd -->
-    <!-- End of bodyEnd -->
   </body>
 </html>
